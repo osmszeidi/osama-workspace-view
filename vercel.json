@@ -1,9 +1,8 @@
 {
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/b/:token",
-      "destination": "/index.html"
+      "destination": "/"
     }
   ],
   "headers": [
