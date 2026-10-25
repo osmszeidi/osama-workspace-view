@@ -1,0 +1,37 @@
+html,
+body {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+body {
+  user-select: text;
+}
+.ws-card a {
+  pointer-events: auto;
+}
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(108, 194, 138, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(108, 194, 138, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 194, 138, 0);
+  }
+}
+.live-dot {
+  animation: live-pulse 2s infinite;
+}
+@keyframes changed-flash {
+  0% {
+    box-shadow: 0 0 0 2px rgba(142, 166, 255, 0.9), 0 0 24px rgba(142, 166, 255, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(142, 166, 255, 0), 0 0 24px rgba(142, 166, 255, 0);
+  }
+}
+.ws-card.changed > .surface,
+.ws-card.changed > .ws-outline {
+  animation: changed-flash 1.8s ease-out;
+}

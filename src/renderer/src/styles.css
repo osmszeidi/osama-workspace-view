@@ -1,0 +1,361 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font: 'Inter', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --sel: #8ea6ff;
+}
+
+/* Theme tokens. The app uses .theme-dark; PDF export can use light/white. */
+.theme-dark {
+  --bg: #0b0b0c;
+  --canvas: #0e0e10;
+  --grid: rgba(255, 255, 255, 0.085);
+  --card: #1a1a1e;
+  --card-2: #212126;
+  --border: #2a2a31;
+  --border-strong: #3a3a43;
+  --text: #ededf0;
+  --text-2: #b9b9c2;
+  --muted: #84848f;
+  --link: #9db4ff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  --group-bg: rgba(255, 255, 255, 0.022);
+  --check: #ededf0;
+}
+.theme-light {
+  --bg: #f4f2ee;
+  --canvas: #f4f2ee;
+  --grid: rgba(0, 0, 0, 0.06);
+  --card: #ffffff;
+  --card-2: #f7f6f3;
+  --border: #e3e0da;
+  --border-strong: #cfcac2;
+  --text: #17171a;
+  --text-2: #3b3b42;
+  --muted: #7a7a84;
+  --link: #3651c9;
+  --shadow: 0 1px 2px rgba(20, 20, 30, 0.08), 0 8px 22px -14px rgba(20, 20, 30, 0.25);
+  --group-bg: rgba(0, 0, 0, 0.025);
+  --check: #17171a;
+}
+.theme-white {
+  --bg: #ffffff;
+  --canvas: #ffffff;
+  --grid: rgba(0, 0, 0, 0.05);
+  --card: #ffffff;
+  --card-2: #f7f7f8;
+  --border: #e4e4e8;
+  --border-strong: #cfcfd6;
+  --text: #111114;
+  --text-2: #36363d;
+  --muted: #74747e;
+  --link: #3651c9;
+  --shadow: 0 0 0 rgba(0, 0, 0, 0);
+  --group-bg: rgba(0, 0, 0, 0.02);
+  --check: #111114;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+}
+::selection {
+  background: rgba(142, 166, 255, 0.35);
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag,
+.drag-region button,
+.drag-region input,
+.drag-region a {
+  -webkit-app-region: no-drag;
+}
+
+/* Scrollbars */
+.scroll-thin::-webkit-scrollbar,
+.scroll-thin *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scroll-thin::-webkit-scrollbar-thumb,
+.scroll-thin *::-webkit-scrollbar-thumb {
+  background: #2a2a31;
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------------- Cards ---------------- */
+.ws-card {
+  position: absolute;
+  box-sizing: border-box;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.ws-card .surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  position: relative;
+}
+.ws-card[data-tint] .surface {
+  background: color-mix(in srgb, var(--tint) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--tint) 32%, var(--border));
+}
+.ws-card[data-tint] .surface::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--tint);
+}
+.ws-card.selected > .surface,
+.ws-card.selected > .ws-outline {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+}
+.ws-card.editing > .surface {
+  outline: 2px solid color-mix(in srgb, var(--sel) 70%, transparent);
+  outline-offset: 2px;
+}
+.ws-card .muted {
+  color: var(--muted);
+}
+
+.note-html {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  outline: none;
+  user-select: text;
+}
+.note-html p {
+  margin: 0 0 0.5em;
+}
+.note-html p:last-child,
+.note-html ul:last-child,
+.note-html ol:last-child {
+  margin-bottom: 0;
+}
+.note-html h1 {
+  font-size: 1.35em;
+  font-weight: 650;
+  line-height: 1.25;
+  margin: 0.2em 0 0.4em;
+  letter-spacing: -0.01em;
+}
+.note-html h2 {
+  font-size: 1.12em;
+  font-weight: 620;
+  margin: 0.2em 0 0.35em;
+}
+.note-html ul,
+.note-html ol {
+  margin: 0 0 0.5em;
+  padding-left: 1.3em;
+}
+.note-html ul {
+  list-style: disc;
+}
+.note-html ol {
+  list-style: decimal;
+}
+.note-html li {
+  margin: 0.1em 0;
+}
+.note-html blockquote {
+  border-left: 3px solid var(--border-strong);
+  margin: 0.3em 0;
+  padding: 0.1em 0 0.1em 0.8em;
+  color: var(--text-2);
+}
+.note-html a {
+  color: var(--link);
+  text-decoration: underline;
+}
+.note-html code {
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 0.9em;
+  background: var(--card-2);
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+}
+.note-html b,
+.note-html strong {
+  font-weight: 650;
+}
+.note-html[contenteditable='true']:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+
+.ws-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  padding: 0;
+  font: inherit;
+  user-select: text;
+}
+.ws-input::placeholder {
+  color: var(--muted);
+}
+.ws-field {
+  width: 100%;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  color: var(--text);
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  user-select: text;
+}
+.ws-field:focus {
+  border-color: var(--sel);
+}
+
+.ws-check {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-top: 3px;
+  background: transparent;
+  color: var(--card);
+}
+.ws-check.on {
+  background: var(--check);
+  border-color: var(--check);
+}
+
+/* App controls */
+.btn {
+  @apply inline-flex items-center gap-1.5 rounded-md px-2.5 h-8 text-[13px] font-medium transition-colors duration-100 select-none whitespace-nowrap;
+}
+.btn-primary {
+  @apply bg-ink-100 text-ink-950 hover:bg-white;
+}
+.btn-ghost {
+  @apply text-ink-300 hover:text-ink-100 hover:bg-ink-800;
+}
+.btn-outline {
+  @apply border border-ink-700 text-ink-200 hover:bg-ink-800 hover:border-ink-600;
+}
+.btn-danger {
+  @apply bg-[#e5646e] text-white hover:bg-[#ef7680];
+}
+.icon-btn {
+  @apply inline-flex items-center justify-center h-8 w-8 rounded-md text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors duration-100;
+}
+.icon-btn.active {
+  @apply text-ink-100 bg-ink-750;
+}
+.field {
+  @apply w-full rounded-md bg-ink-900 border border-ink-700 px-3 h-9 text-[13px] text-ink-100 placeholder:text-ink-500 outline-none focus:border-ink-500 select-text;
+}
+textarea.field {
+  @apply h-auto py-2 leading-relaxed;
+}
+.kbd {
+  @apply inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded border border-ink-700 bg-ink-850 text-[10.5px] text-ink-400 font-medium;
+}
+.seg {
+  @apply inline-flex rounded-lg bg-ink-900 border border-ink-750 p-0.5;
+}
+.seg > button {
+  @apply px-3 h-7 rounded-md text-[12.5px] text-ink-400 hover:text-ink-200 transition-colors;
+}
+.seg > button.on {
+  @apply bg-ink-750 text-ink-100 shadow-sm;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 120ms ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 140ms ease-out;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+/* ---------------- Print ---------------- */
+.print-root body {
+  overflow: visible;
+  user-select: text;
+}
+.print-root .ws-card .surface {
+  box-shadow: none;
+}
+.print-page {
+  position: relative;
+  overflow: hidden;
+  /* Keeps Chromium's print pagination from fragmenting the (unscaled) absolutely
+     positioned cards inside each page, which otherwise drops cards on multi-page exports. */
+  contain: strict;
+  break-after: page;
+  page-break-after: always;
+  box-sizing: border-box;
+}
+.print-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
