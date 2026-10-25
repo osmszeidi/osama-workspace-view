@@ -2,6 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+.theme-dark {
+  --ink-950: 11 11 12;
+  --ink-900: 17 17 19;
+  --ink-850: 22 22 26;
+  --ink-800: 27 27 31;
+  --ink-750: 33 33 38;
+  --ink-700: 42 42 48;
+  --ink-600: 58 58 66;
+  --ink-500: 90 90 100;
+  --ink-400: 138 138 148;
+  --ink-300: 180 180 188;
+  --ink-200: 216 216 222;
+  --ink-100: 237 237 240;
+  --ink-50: 246 246 247;
+  --live: #8fd6a8;
+  --handle-border: #0e0e10;
+}
+
+/* Bright mode (also used for the "Light" PDF background) */
+.theme-light {
+  --ink-950: 246 245 242;
+  --ink-900: 255 255 255;
+  --ink-850: 255 255 255;
+  --ink-800: 239 237 233;
+  --ink-750: 232 230 225;
+  --ink-700: 222 219 213;
+  --ink-600: 201 198 191;
+  --ink-500: 154 151 143;
+  --ink-400: 110 108 102;
+  --ink-300: 75 74 70;
+  --ink-200: 47 46 43;
+  --ink-100: 27 26 25;
+  --ink-50: 15 15 14;
+  --live: #2f8a52;
+  --handle-border: #ffffff;
+}
+
 :root {
   --font: 'Inter', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
   --sel: #8ea6ff;
@@ -9,6 +47,7 @@
 
 /* Theme tokens. The app uses .theme-dark; PDF export can use light/white. */
 .theme-dark {
+  color-scheme: dark;
   --bg: #0b0b0c;
   --canvas: #0e0e10;
   --grid: rgba(255, 255, 255, 0.085);
@@ -25,6 +64,7 @@
   --check: #ededf0;
 }
 .theme-light {
+  color-scheme: light;
   --bg: #f4f2ee;
   --canvas: #f4f2ee;
   --grid: rgba(0, 0, 0, 0.06);
@@ -100,7 +140,7 @@ button {
 }
 .scroll-thin::-webkit-scrollbar-thumb,
 .scroll-thin *::-webkit-scrollbar-thumb {
-  background: #2a2a31;
+  background: rgb(var(--ink-700));
   border-radius: 10px;
   border: 3px solid transparent;
   background-clip: padding-box;
@@ -268,7 +308,7 @@ button {
   @apply inline-flex items-center gap-1.5 rounded-md px-2.5 h-8 text-[13px] font-medium transition-colors duration-100 select-none whitespace-nowrap;
 }
 .btn-primary {
-  @apply bg-ink-100 text-ink-950 hover:bg-white;
+  @apply bg-ink-100 text-ink-950 hover:bg-ink-200;
 }
 .btn-ghost {
   @apply text-ink-300 hover:text-ink-100 hover:bg-ink-800;

@@ -6,8 +6,8 @@ import { useApp } from '../store/app'
 export function Logo({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill="#16161a" stroke="#2f2f37" />
-      <circle cx="16" cy="16" r="8.2" fill="none" stroke="#ededf0" strokeWidth="2.6" />
+      <rect x="1" y="1" width="30" height="30" rx="8" style={{ fill: 'rgb(var(--ink-850))', stroke: 'rgb(var(--ink-700))' }} />
+      <circle cx="16" cy="16" r="8.2" fill="none" style={{ stroke: 'rgb(var(--ink-100))' }} strokeWidth="2.6" />
       <circle cx="22.4" cy="9.6" r="2.4" fill="#c9a96e" />
     </svg>
   )

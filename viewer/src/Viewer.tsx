@@ -1,47 +1,16 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js'
-import { Eye, Lock, Maximize, Minus, Plus } from 'lucide-react'
-import type { Card, Connection } from '@shared/types'
-import { SHARE_ASSET_BASE, SHARE_PUBLISHABLE_KEY, SHARE_SUPABASE_URL } from '@shared/share-config'
+import { CheckCircle2, Eye, Lock, Maximize, MessageSquare, Minus, Plus, TriangleAlert } from 'lucide-react'
+import type { Card, ShareComment } from '@shared/types'
+import { SHARE_PUBLISHABLE_KEY, SHARE_SUPABASE_URL } from '@shared/share-config'
 import { CardContent } from '@/board/CardContent'
 import ConnectionsLayer from '@/board/ConnectionsLayer'
-import { colorHex, isAutoHeight, setAssetResolver, timeAgo } from '@/lib/util'
+import { colorHex, isAutoHeight, timeAgo } from '@/lib/util'
 import { unionRects } from '@/lib/geometry'
 import { Logo } from '@/components/ui'
-
-interface SharedBoard {
-  token: string
-  title: string
-  projectTitle: string
-  projectIcon: string
-  data: { cards: Card[]; connections: Connection[] }
-  version: number
-  updatedAt: string
-}
-
-// ---------- token & backend selection ----------
-const params = new URLSearchParams(location.search)
-const token = (location.pathname.match(/\/b\/([A-Za-z0-9_-]{20,64})/)?.[1] ?? params.get('b') ?? '').trim()
-// A local test backend may be used only when the viewer itself runs on localhost.
-const localApi = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? params.get('api') : null
-
-setAssetResolver((id) => (localApi ? `${localApi}/assets/${token}/${id}` : `${SHARE_ASSET_BASE}/${token}/${id}`))
-
-async function fetchShare(): Promise<SharedBoard | null> {
-  if (localApi) {
-    const r = await fetch(`${localApi}/share/${token}`)
-    if (r.status === 404) return null
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    return r.json()
-  }
-  const r = await fetch(`${SHARE_SUPABASE_URL}/rest/v1/rpc/get_share`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: SHARE_PUBLISHABLE_KEY },
-    body: JSON.stringify({ p_token: token })
-  })
-  if (!r.ok) throw new Error(`HTTP ${r.status}`)
-  return (await r.json()) as SharedBoard | null
-}
+import { CardFeedbackSummary, summarize } from '@/store/feedback'
+import { fetchComments, fetchShare, localApi, SharedBoard, token } from './api'
+import FeedbackSheet from './FeedbackSheet'
 
 type Status = 'loading' | 'ready' | 'missing' | 'error'
 
@@ -50,6 +19,9 @@ export default function Viewer() {
   const [status, setStatus] = useState<Status>(token ? 'loading' : 'missing')
   const [live, setLive] = useState(false)
   const [changed, setChanged] = useState<Set<string>>(new Set())
+  const [comments, setComments] = useState<ShareComment[]>([])
+  const [selected, setSelected] = useState<string | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [, tick] = useState(0)
   const prev = useRef<Map<string, string>>(new Map())
   const versionRef = useRef(-1)
@@ -87,28 +59,49 @@ export default function Viewer() {
     }
   }, [])
 
+  const loadComments = useCallback(async () => {
+    try {
+      setComments(await fetchComments())
+    } catch {
+      /* keep what we have */
+    }
+  }, [])
+
   // Initial load, live channel, and a slow safety poll.
   useEffect(() => {
     if (!token) return
     load()
+    loadComments()
     let channel: RealtimeChannel | null = null
     let poll: ReturnType<typeof setInterval>
     if (localApi) {
       setLive(true)
-      poll = setInterval(load, 1000)
+      poll = setInterval(() => {
+        load()
+        loadComments()
+      }, 1000)
     } else {
       const sb = createClient(SHARE_SUPABASE_URL, SHARE_PUBLISHABLE_KEY, { auth: { persistSession: false } })
       channel = sb
         .channel(`share:${token}`)
         .on('broadcast', { event: 'update' }, () => load())
+        .on('broadcast', { event: 'comment' }, () => loadComments())
         .on('broadcast', { event: 'revoked' }, () => {
           setStatus('missing')
           setBoard(null)
         })
         .subscribe((s) => setLive(s === 'SUBSCRIBED'))
-      poll = setInterval(load, 15000)
+      poll = setInterval(() => {
+        load()
+        loadComments()
+      }, 15000)
     }
-    const onVis = () => document.visibilityState === 'visible' && load()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        load()
+        loadComments()
+      }
+    }
     document.addEventListener('visibilitychange', onVis)
     const t = setInterval(() => tick((x) => x + 1), 20000)
     return () => {
@@ -117,7 +110,19 @@ export default function Viewer() {
       document.removeEventListener('visibilitychange', onVis)
       channel?.unsubscribe()
     }
-  }, [load])
+  }, [load, loadComments])
+
+  const cardMap = useMemo(() => Object.fromEntries((board?.data.cards ?? []).map((c) => [c.id, c])), [board])
+  const summary = useMemo(() => summarize(comments), [comments])
+  const openCount = comments.filter((c) => !c.isOwner && !c.resolved).length
+  const selectCard = (id: string | null) => {
+    setSelected(id)
+    if (id) setSheetOpen(true)
+  }
+  // Drop the selection if the card disappears from the board.
+  useEffect(() => {
+    if (selected && board && !cardMap[selected]) setSelected(null)
+  }, [board, cardMap, selected])
 
   if (status === 'missing' || status === 'error') {
     return (
@@ -169,15 +174,47 @@ export default function Viewer() {
           <span className={`h-1.5 w-1.5 rounded-full ${live ? 'live-dot bg-[#6cc28a]' : 'bg-ink-500'}`} />
           {live ? 'Live' : 'Connecting'}
         </span>
-        <span className="hidden items-center gap-1 rounded-full border border-ink-700 px-2.5 py-1 text-[11.5px] text-ink-400 sm:flex">
+        <span className="hidden items-center gap-1 rounded-full border border-ink-700 px-2.5 py-1 text-[11.5px] text-ink-400 lg:flex" title="You can’t edit this board, but you can leave feedback">
           <Lock size={11} /> View only
         </span>
+        <button
+          data-testid="viewer-feedback-button"
+          className={`btn h-8 ${sheetOpen ? 'bg-ink-800 text-ink-100' : 'btn-outline'}`}
+          onClick={() => {
+            if (sheetOpen) setSheetOpen(false)
+            else {
+              setSelected(null)
+              setSheetOpen(true)
+            }
+          }}
+        >
+          <MessageSquare size={14} /> <span className="hidden sm:inline">Feedback</span>
+          {openCount > 0 && <span className="rounded-full bg-ink-750 px-1.5 text-[11px]">{openCount}</span>}
+        </button>
       </header>
       <div className="relative min-h-0 flex-1">
         {board ? (
-          <ViewCanvas board={board} changed={changed} />
+          <ViewCanvas board={board} changed={changed} selected={sheetOpen ? selected : null} summary={summary} onSelect={selectCard} />
         ) : (
           <div className="flex h-full items-center justify-center text-[13px] text-ink-500">Loading board…</div>
+        )}
+        {board && sheetOpen && (
+          <FeedbackSheet
+            card={selected ? cardMap[selected] ?? null : null}
+            cards={cardMap}
+            comments={comments}
+            onClose={() => {
+              setSheetOpen(false)
+              setSelected(null)
+            }}
+            onSent={(c) => setComments((list) => (list.some((x) => x.id === c.id) ? list : [...list, c]))}
+            onPickCard={(id) => setSelected(id)}
+          />
+        )}
+        {board && !sheetOpen && board.data.cards.length > 0 && (
+          <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-ink-800 bg-ink-900/90 px-3 py-1.5 text-[11.5px] text-ink-400 shadow-pop backdrop-blur">
+            Tap a card to comment or approve
+          </div>
         )}
       </div>
     </div>
@@ -188,11 +225,11 @@ export default function Viewer() {
 
 const noop = () => {}
 
-function ViewCard({ card, changed }: { card: Card; changed: boolean }) {
+function ViewCard({ card, changed, selected, fb }: { card: Card; changed: boolean; selected: boolean; fb?: CardFeedbackSummary }) {
   const tint = colorHex(card.color)
   return (
     <div
-      className={`ws-card ${changed ? 'changed' : ''}`}
+      className={`ws-card cursor-pointer ${changed ? 'changed' : ''} ${selected ? 'selected' : ''}`}
       data-card-id={card.id}
       data-tint={tint && card.type !== 'heading' && card.type !== 'divider' && card.type !== 'group' ? '' : undefined}
       style={{
@@ -204,12 +241,35 @@ function ViewCard({ card, changed }: { card: Card; changed: boolean }) {
       }}
     >
       <CardContent card={card} editing={false} readOnly onData={noop} onExitEdit={noop} />
+      {fb && fb.open > 0 && (
+        <span
+          data-testid="viewer-card-badge"
+          className="pointer-events-none absolute -right-2.5 -top-2.5 z-20 flex h-6 min-w-[24px] items-center justify-center gap-1 rounded-full px-1.5 text-[11px] font-semibold text-white shadow-md"
+          style={{ background: fb.status === 'approved' ? '#3fa267' : fb.status === 'changes' ? '#d98a2b' : '#6f7cf2' }}
+        >
+          {fb.status === 'approved' ? <CheckCircle2 size={12} /> : fb.status === 'changes' ? <TriangleAlert size={12} /> : <MessageSquare size={12} />}
+          {fb.open}
+        </span>
+      )}
     </div>
   )
 }
 
-function ViewCanvas({ board, changed }: { board: SharedBoard; changed: Set<string> }) {
+function ViewCanvas({
+  board,
+  changed,
+  selected,
+  summary,
+  onSelect
+}: {
+  board: SharedBoard
+  changed: Set<string>
+  selected: string | null
+  summary: Record<string, CardFeedbackSummary>
+  onSelect: (id: string | null) => void
+}) {
   const ref = useRef<HTMLDivElement>(null)
+  const tap = useRef<{ x: number; y: number; moved: boolean; multi: boolean } | null>(null)
   const [vp, setVp] = useState({ x: 0, y: 0, zoom: 1 })
   const vpRef = useRef(vp)
   vpRef.current = vp
@@ -264,6 +324,8 @@ function ViewCanvas({ board, changed }: { board: SharedBoard; changed: Set<strin
     if ((e.target as HTMLElement).closest('a, [data-ui]')) return
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size === 1) tap.current = { x: e.clientX, y: e.clientY, moved: false, multi: false }
+    else if (tap.current) tap.current.multi = true
     startGesture()
   }
   const startGesture = () => {
@@ -287,6 +349,7 @@ function ViewCanvas({ board, changed }: { board: SharedBoard; changed: Set<strin
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId) || !gesture.current) return
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (tap.current && Math.hypot(e.clientX - tap.current.x, e.clientY - tap.current.y) > 5) tap.current.moved = true
     const g = gesture.current
     const pts = [...pointers.current.values()]
     const r = ref.current!.getBoundingClientRect()
@@ -304,6 +367,15 @@ function ViewCanvas({ board, changed }: { board: SharedBoard; changed: Set<strin
   }
   const onPointerUp = (e: React.PointerEvent) => {
     pointers.current.delete(e.pointerId)
+    const t = tap.current
+    if (t && !pointers.current.size) {
+      tap.current = null
+      if (!t.moved && !t.multi && e.type === 'pointerup') {
+        // A tap (not a drag) selects the card under the pointer for feedback.
+        const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-card-id]') as HTMLElement | null
+        onSelect(el?.dataset.cardId ?? null)
+      }
+    }
     startGesture()
   }
 
@@ -325,7 +397,7 @@ function ViewCanvas({ board, changed }: { board: SharedBoard; changed: Set<strin
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onDoubleClick={(e) => {
-        if ((e.target as HTMLElement).closest('a, [data-ui]')) return
+        if ((e.target as HTMLElement).closest('a, [data-ui], [data-card-id], [data-viewer-panel]')) return
         const r = ref.current!.getBoundingClientRect()
         zoomAt(1.6, e.clientX - r.left, e.clientY - r.top)
       }}
@@ -334,13 +406,13 @@ function ViewCanvas({ board, changed }: { board: SharedBoard; changed: Set<strin
         {sorted
           .filter((c) => c.type === 'group')
           .map((c) => (
-            <ViewCard key={c.id} card={c} changed={changed.has(c.id)} />
+            <ViewCard key={c.id} card={c} changed={changed.has(c.id)} selected={selected === c.id} fb={summary[c.id]} />
           ))}
         <ConnectionsLayer cards={cardMap} connections={board.data.connections} interactive={false} />
         {sorted
           .filter((c) => c.type !== 'group')
           .map((c) => (
-            <ViewCard key={c.id} card={c} changed={changed.has(c.id)} />
+            <ViewCard key={c.id} card={c} changed={changed.has(c.id)} selected={selected === c.id} fb={summary[c.id]} />
           ))}
       </div>
 

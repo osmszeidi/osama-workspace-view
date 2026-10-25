@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Calendar, Check, ExternalLink, FileText, FolderOpen, Globe, ImageOff, Plus, Trash2, User, X } from 'lucide-react'
+import { Calendar, Check, CloudUpload, ExternalLink, FileText, FolderOpen, Globe, ImageOff, Music, Pause, Play, Plus, Trash2, User, Video, X } from 'lucide-react'
 import type { Card, CardData, ChecklistItem, ShotRow, TaskStatus } from '@shared/types'
 import { assetUrl, formatBytes, formatDue, hostOf, NOTE_LABELS, normalizeUrl, sanitizeHtml, STATUS_META, uid, fileExt } from '../lib/util'
 
@@ -478,7 +478,7 @@ function LinkCard({ card, editing, readOnly, onData }: CardContentProps) {
                 {url && (
                   <button
                     data-no-drag
-                    className="ml-auto flex flex-none items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] hover:bg-white/5"
+                    className="ml-auto flex flex-none items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] hover:bg-[color:var(--card-2)]"
                     style={{ color: 'var(--link)' }}
                     onPointerDown={stop}
                     onClick={(e) => {
@@ -518,10 +518,135 @@ const EXT_COLORS: Record<string, string> = {
   zip: '#8a8a94'
 }
 
+const AUDIO_EXT = new Set(['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'])
+const VIDEO_EXT = new Set(['mp4', 'm4v', 'mov', 'webm'])
+export const mediaKind = (ext: string): 'audio' | 'video' | null => (AUDIO_EXT.has(ext) ? 'audio' : VIDEO_EXT.has(ext) ? 'video' : null)
+const isPrinting = () => typeof document !== 'undefined' && document.documentElement.classList.contains('print-root')
+
+const fmtTime = (t: number) => {
+  if (!Number.isFinite(t) || t < 0) return '0:00'
+  const m = Math.floor(t / 60)
+  const s = Math.floor(t % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+// Only one clip plays at a time across the board.
+const PLAY_EVENT = 'ows-media-play'
+
+function AudioPlayer({ src, id }: { src: string; id: string }) {
+  const ref = useRef<HTMLAudioElement>(null)
+  const bar = useRef<HTMLDivElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [time, setTime] = useState(0)
+  const [dur, setDur] = useState(0)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    const other = (e: Event) => (e as CustomEvent).detail !== id && ref.current?.pause()
+    window.addEventListener(PLAY_EVENT, other)
+    return () => window.removeEventListener(PLAY_EVENT, other)
+  }, [id])
+  const toggle = () => {
+    const a = ref.current
+    if (!a) return
+    if (a.paused) {
+      window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: id }))
+      a.play().catch(() => setFailed(true))
+    } else a.pause()
+  }
+  const seek = (clientX: number) => {
+    const a = ref.current,
+      b = bar.current
+    if (!a || !b || !dur) return
+    const r = b.getBoundingClientRect()
+    a.currentTime = Math.min(dur, Math.max(0, ((clientX - r.left) / r.width) * dur))
+    setTime(a.currentTime)
+  }
+  const pct = dur ? (time / dur) * 100 : 0
+  return (
+    <div data-no-drag data-media="audio" className="mt-3 flex items-center gap-3" onPointerDown={stop} onDoubleClick={stop}>
+      <audio
+        ref={ref}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={(e) => setDur(e.currentTarget.duration)}
+        onDurationChange={(e) => setDur(e.currentTarget.duration)}
+        onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onError={() => setFailed(true)}
+      />
+      <button
+        type="button"
+        aria-label={playing ? 'Pause' : 'Play'}
+        data-testid="media-play"
+        className="flex h-9 w-9 flex-none items-center justify-center rounded-full transition-transform active:scale-95"
+        style={{ background: 'var(--tint, var(--text))', color: 'var(--card)' }}
+        onClick={(e) => {
+          e.stopPropagation()
+          toggle()
+        }}
+      >
+        {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
+      </button>
+      <div className="min-w-0 flex-1">
+        <div
+          ref={bar}
+          className="relative h-1.5 cursor-pointer rounded-full"
+          style={{ background: 'var(--card-2)', boxShadow: 'inset 0 0 0 1px var(--border)' }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            seek(e.clientX)
+            const move = (ev: PointerEvent) => seek(ev.clientX)
+            const up = () => {
+              window.removeEventListener('pointermove', move)
+              window.removeEventListener('pointerup', up)
+            }
+            window.addEventListener('pointermove', move)
+            window.addEventListener('pointerup', up)
+          }}
+        >
+          <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: 'var(--tint, var(--text))' }} />
+          <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${pct}%`, background: 'var(--tint, var(--text))', boxShadow: '0 0 0 2px var(--card)' }} />
+        </div>
+        <div className="mt-1.5 flex justify-between text-[11px] tabular-nums" style={{ color: 'var(--muted)' }}>
+          <span data-testid="media-time">{fmtTime(time)}</span>
+          <span data-testid="media-duration">{failed ? 'Can’t play this file' : fmtTime(dur)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VideoPlayer({ src, id }: { src: string; id: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const other = (e: Event) => (e as CustomEvent).detail !== id && ref.current?.pause()
+    window.addEventListener(PLAY_EVENT, other)
+    return () => window.removeEventListener(PLAY_EVENT, other)
+  }, [id])
+  return (
+    <div data-no-drag data-media="video" className="mt-3 overflow-hidden rounded-lg" style={{ background: '#000' }} onPointerDown={stop} onDoubleClick={stop}>
+      <video
+        ref={ref}
+        src={src}
+        controls
+        playsInline
+        preload="metadata"
+        controlsList="nodownload"
+        className="block max-h-[70vh] w-full"
+        onPlay={() => window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: id }))}
+      />
+    </div>
+  )
+}
+
 function FileCard({ card, editing, readOnly, onData }: CardContentProps) {
   const d = card.data
   const ext = d.ext || fileExt(d.name)
   const col = EXT_COLORS[ext] || '#8a8a94'
+  const media = mediaKind(ext)
+  const playable = media && d.assetId && !isPrinting()
   const act = async (kind: 'open' | 'reveal') => {
     const r = kind === 'open' ? await window.api.assets.open({ cardId: card.id }) : await window.api.assets.reveal({ cardId: card.id })
     if (!r.ok) {
@@ -529,11 +654,12 @@ function FileCard({ card, editing, readOnly, onData }: CardContentProps) {
       toast('error', r.error || 'Could not open the file')
     }
   }
+  const Icon = media === 'audio' ? Music : media === 'video' ? Video : FileText
   return (
     <div className="surface px-4 py-3.5">
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-9 flex-none flex-col items-center justify-center rounded-md text-[9px] font-bold uppercase" style={{ background: `${col}22`, color: col, border: `1px solid ${col}44` }}>
-          <FileText size={14} />
+          <Icon size={14} />
           {ext.slice(0, 4)}
         </span>
         <div className="min-w-0 flex-1">
@@ -545,25 +671,38 @@ function FileCard({ card, editing, readOnly, onData }: CardContentProps) {
             </div>
           )}
           <div className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted)' }}>
-            {[formatBytes(d.size), d.assetId ? null : 'Reference'].filter(Boolean).join(' · ')}
+            {[formatBytes(d.size), !readOnly && d.isRef ? 'Reference' : null].filter(Boolean).join(' · ')}
           </div>
-          {d.path && readOnly && (
+          {d.path && readOnly && isPrinting() && (
             <div className="mt-1 break-all text-[10.5px]" style={{ color: 'var(--muted)' }}>
               {d.path}
             </div>
           )}
+          {media && readOnly && !d.assetId && d.remote && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11.5px]" style={{ color: 'var(--muted)' }}>
+              {d.remote === 'uploading' ? (
+                <>
+                  <CloudUpload size={12} /> Uploading — available to play in a moment
+                </>
+              ) : (
+                <>Too large to play online (over 50 MB)</>
+              )}
+            </div>
+          )}
           {!readOnly && (
             <div className="mt-2 flex gap-1.5">
-              <button data-no-drag className="flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11.5px] hover:bg-white/5" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-2)' }} onPointerDown={stop} onClick={(e) => (e.stopPropagation(), act('open'))}>
+              <button data-no-drag className="flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11.5px] hover:bg-[color:var(--card-2)]" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-2)' }} onPointerDown={stop} onClick={(e) => (e.stopPropagation(), act('open'))}>
                 <ExternalLink size={11} /> Open
               </button>
-              <button data-no-drag className="flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11.5px] hover:bg-white/5" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-2)' }} onPointerDown={stop} onClick={(e) => (e.stopPropagation(), act('reveal'))}>
+              <button data-no-drag className="flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11.5px] hover:bg-[color:var(--card-2)]" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-2)' }} onPointerDown={stop} onClick={(e) => (e.stopPropagation(), act('reveal'))}>
                 <FolderOpen size={11} /> Show in folder
               </button>
             </div>
           )}
         </div>
       </div>
+      {playable && media === 'audio' && <AudioPlayer src={assetUrl(d.assetId, 'a')} id={card.id} />}
+      {playable && media === 'video' && <VideoPlayer src={assetUrl(d.assetId, 'a')} id={card.id} />}
       <Tags tags={d.tags} />
     </div>
   )

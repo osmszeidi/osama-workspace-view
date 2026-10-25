@@ -60,6 +60,10 @@ export interface CardData {
   description?: string
   // swatch
   hex?: string
+  // file: true when only a reference to a large file is kept
+  isRef?: boolean
+  // shared-link only: media that could not be put online (too large / still uploading)
+  remote?: 'uploading' | 'too-large'
 }
 
 export interface Card {
@@ -164,6 +168,7 @@ export interface Settings {
   sidebarCollapsed: boolean
   showGrid: boolean
   snapToGrid: boolean
+  theme: 'dark' | 'light' | 'system'
 }
 
 export interface SearchResult {
@@ -229,7 +234,8 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultOrientation: 'landscape',
   sidebarCollapsed: false,
   showGrid: true,
-  snapToGrid: false
+  snapToGrid: false,
+  theme: 'dark'
 }
 
 // ---------- Live sharing ----------
@@ -242,4 +248,23 @@ export interface ShareStatus {
   url: string | null
   lastPublishedAt: number | null
   error: string | null
+}
+
+export type FeedbackKind = 'comment' | 'approve' | 'changes'
+
+export interface ShareComment {
+  id: string
+  cardId: string | null
+  author: string
+  body: string
+  kind: FeedbackKind
+  isOwner: boolean
+  resolved: boolean
+  createdAt: string
+}
+
+export interface ShareCommentsUpdate {
+  boardId: string
+  comments: ShareComment[]
+  unread: number
 }
